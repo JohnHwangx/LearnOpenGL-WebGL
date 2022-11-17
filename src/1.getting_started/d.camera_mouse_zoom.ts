@@ -1,0 +1,291 @@
+import webglUtils from "../resources/webgl-utils";
+import glm, { Vector3} from '../resources/glm'
+
+const vertexShaderSource = `#version 300 es
+in vec3 aPos;
+in vec2 aTexCoord;
+
+out vec2 TexCoord;
+
+uniform mat4 model;
+uniform mat4 view;
+uniform mat4 projection;
+
+void main(){
+    gl_Position = projection * view * model * vec4(aPos.x, (-1.0) * aPos.y, aPos.z, 1.0);
+    TexCoord = vec2(aTexCoord.x, aTexCoord.y);
+}`;
+
+const fragmentShaderSource = `#version 300 es
+precision highp float;
+out vec4 FragColor;
+
+in vec2 TexCoord;
+
+uniform sampler2D texture1;
+uniform sampler2D texture2;
+void main(){
+    FragColor = mix(texture(texture1, TexCoord), texture(texture2, TexCoord), 0.2);
+}`;
+
+export default function main() {
+    
+    let images = ['./resources/images/container.jpg', './resources/images/awesomeface.jpg'];
+    const loadImage = function (imageSrc: string) {
+        let promise: Promise<HTMLImageElement> = new Promise((resolve, reject) => {
+            const image = new Image();
+            image.onload = () => {
+                resolve(image);
+            }
+            image.onerror = () => {
+                reject();
+            }
+            image.src = imageSrc;
+        });
+        return promise;
+    }
+
+    Promise.all(images.map(i => loadImage(i))).then(images => {
+        render(images);
+    });
+}
+
+function render(images: HTMLImageElement[]) {
+    const canvas = document.querySelector('#c') as HTMLCanvasElement;
+    const gl = canvas.getContext('webgl2');
+    if (!gl) {
+        return;
+    }
+
+    let cameraPosition = [0, 0, 3];
+    let cameraFront:Vector3 = [0, 0, -1];
+    let cameraUp = [0, 1, 0];
+    let deltaTime = 0;
+    let lastFrame = 0;
+    
+    let lastX, lastY;
+    let yaw = -90;
+    let pitch = 0;
+    let fov = 45;
+
+    let program = webglUtils.createProgramFromStrings(gl, [vertexShaderSource, fragmentShaderSource]);
+    let positionAttibLocation = gl.getAttribLocation(program, 'aPos');
+    let texCoordAttibLocation = gl.getAttribLocation(program, 'aTexCoord');
+
+    const vertices = [
+        -0.5, -0.5, -0.5, 0.0, 0.0,
+        0.5, -0.5, -0.5, 1.0, 0.0,
+        0.5, 0.5, -0.5, 1.0, 1.0,
+        0.5, 0.5, -0.5, 1.0, 1.0,
+        -0.5, 0.5, -0.5, 0.0, 1.0,
+        -0.5, -0.5, -0.5, 0.0, 0.0,
+
+        -0.5, -0.5, 0.5, 0.0, 0.0,
+        0.5, -0.5, 0.5, 1.0, 0.0,
+        0.5, 0.5, 0.5, 1.0, 1.0,
+        0.5, 0.5, 0.5, 1.0, 1.0,
+        -0.5, 0.5, 0.5, 0.0, 1.0,
+        -0.5, -0.5, 0.5, 0.0, 0.0,
+
+        -0.5, 0.5, 0.5, 1.0, 0.0,
+        -0.5, 0.5, -0.5, 1.0, 1.0,
+        -0.5, -0.5, -0.5, 0.0, 1.0,
+        -0.5, -0.5, -0.5, 0.0, 1.0,
+        -0.5, -0.5, 0.5, 0.0, 0.0,
+        -0.5, 0.5, 0.5, 1.0, 0.0,
+
+        0.5, 0.5, 0.5, 1.0, 0.0,
+        0.5, 0.5, -0.5, 1.0, 1.0,
+        0.5, -0.5, -0.5, 0.0, 1.0,
+        0.5, -0.5, -0.5, 0.0, 1.0,
+        0.5, -0.5, 0.5, 0.0, 0.0,
+        0.5, 0.5, 0.5, 1.0, 0.0,
+
+        -0.5, -0.5, -0.5, 0.0, 1.0,
+        0.5, -0.5, -0.5, 1.0, 1.0,
+        0.5, -0.5, 0.5, 1.0, 0.0,
+        0.5, -0.5, 0.5, 1.0, 0.0,
+        -0.5, -0.5, 0.5, 0.0, 0.0,
+        -0.5, -0.5, -0.5, 0.0, 1.0,
+
+        -0.5, 0.5, -0.5, 0.0, 1.0,
+        0.5, 0.5, -0.5, 1.0, 1.0,
+        0.5, 0.5, 0.5, 1.0, 0.0,
+        0.5, 0.5, 0.5, 1.0, 0.0,
+        -0.5, 0.5, 0.5, 0.0, 0.0,
+        -0.5, 0.5, -0.5, 0.0, 1.0
+    ];
+
+    const cubePositions = [
+        [0.0, 0.0, 0.0],
+        [2.0, 5.0, -15.0],
+        [-1.5, -2.2, -2.5],
+        [-3.8, -2.0, -12.3],
+        [2.4, -0.4, -3.5],
+        [-1.7, 3.0, -7.5],
+        [1.3, -2.0, -2.5],
+        [1.5, 2.0, -2.5],
+        [1.5, 0.2, -1.5],
+        [-1.3, 1.0, -1.5]
+    ];
+
+    let vao = gl.createVertexArray();
+    gl.bindVertexArray(vao);
+
+    let vbo = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
+
+    gl.vertexAttribPointer(positionAttibLocation, 3, gl.FLOAT, false, 5 * 4, 0);
+    gl.enableVertexAttribArray(positionAttibLocation);
+
+    gl.vertexAttribPointer(texCoordAttibLocation, 2, gl.FLOAT, false, 5 * 4, 3 * 4);
+    gl.enableVertexAttribArray(texCoordAttibLocation);
+
+    let texture1UniformLocation = gl.getUniformLocation(program, 'texture1');
+    let texture2UniformLocation = gl.getUniformLocation(program, 'texture2');
+    
+    let modelLocation = gl.getUniformLocation(program, 'model');
+    let viewLocation = gl.getUniformLocation(program, 'view');
+    let projectionLocation = gl.getUniformLocation(program, 'projection');
+
+    let textures = [];
+    for (let i = 0; i < images.length; i++) {
+        let image = images[i];
+        let texture = gl.createTexture();
+        gl.bindTexture(gl.TEXTURE_2D, texture);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
+
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
+        gl.generateMipmap(gl.TEXTURE_2D);
+
+        textures.push(texture);
+    }
+    
+    webglUtils.resizeCanvasToDisplaySize(canvas);
+    gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
+
+    gl.enable(gl.DEPTH_TEST);
+    
+    gl.useProgram(program);
+        
+    gl.uniform1i(texture1UniformLocation, 0);
+    gl.uniform1i(texture2UniformLocation, 1);
+    
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, textures[0]);
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, textures[1]);
+    
+    function getTime(time: number) {
+            
+        let currentFrame = time;
+        deltaTime = (currentFrame - lastFrame) * 0.001;
+        lastFrame = currentFrame;
+
+        requestAnimationFrame(getTime);
+    }
+    drawScene();
+    requestAnimationFrame(getTime);
+
+    function drawScene() {
+        let center = [cameraPosition[0] + cameraFront[0], cameraPosition[1] + cameraFront[1], cameraPosition[2] + cameraFront[2]];
+        let camera = glm.lookAt(cameraPosition, center, cameraUp);
+        let view = glm.inverse(camera);
+
+        let aspect = gl.canvas.clientWidth / gl.canvas.clientHeight;
+        let projection = glm.perspective(glm.radians(fov), aspect, 1, 2000);
+            
+        gl.uniformMatrix4fv(viewLocation, false, view);
+        gl.uniformMatrix4fv(projectionLocation, false, projection);
+    
+        gl.clearColor(0.2, 0.3, 0.3, 1.0);
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+        for (let i = 0; i < cubePositions.length; i++) {
+            let model = glm.identity();
+            model = glm.translate(model, cubePositions[i]);
+
+            let angle = 20 * i;
+            model = glm.axisRotate(model, [1, 0.3, 0.5], glm.radians(angle));
+                
+            gl.uniformMatrix4fv(modelLocation, false, model);
+    
+            gl.drawArrays(gl.TRIANGLES, 0, 36);
+        }
+    }
+
+    document.onkeydown = (event) => {
+        var e = event || window.event || arguments.callee.caller.arguments[0];
+
+        let cameraSpeed = 2.5 * deltaTime;
+        if (e && e.keyCode == 87) { // 按 W 
+            cameraPosition[0] += cameraSpeed * cameraFront[0];
+            cameraPosition[1] += cameraSpeed * cameraFront[1];
+            cameraPosition[2] += cameraSpeed * cameraFront[2];
+            // console.log('wwwww');
+        } else if (e && e.keyCode == 83) { // 按 S 
+            cameraPosition[0] -= cameraSpeed * cameraFront[0];
+            cameraPosition[1] -= cameraSpeed * cameraFront[1];
+            cameraPosition[2] -= cameraSpeed * cameraFront[2];
+            // console.log('sssss');
+        } else if (e && e.keyCode == 65) { // A
+            // console.log('aaaaa');
+            cameraPosition[0] -= glm.normalize(glm.cross(cameraFront, cameraUp))[0] * cameraSpeed;
+            cameraPosition[1] -= glm.normalize(glm.cross(cameraFront, cameraUp))[1] * cameraSpeed;
+            cameraPosition[2] -= glm.normalize(glm.cross(cameraFront, cameraUp))[2] * cameraSpeed;
+        } else if (e && e.keyCode == 68) { // D
+            // console.log('ddddd');
+            cameraPosition[0] += glm.normalize(glm.cross(cameraFront, cameraUp))[0] * cameraSpeed;
+            cameraPosition[1] += glm.normalize(glm.cross(cameraFront, cameraUp))[1] * cameraSpeed;
+            cameraPosition[2] += glm.normalize(glm.cross(cameraFront, cameraUp))[2] * cameraSpeed;
+        }
+        drawScene();
+    }
+
+    canvas.onmousedown = (e) => {
+        lastX = e.clientX;
+        lastY = e.clientY;
+        fndown();
+    }
+    function fndown() {
+        canvas.onmousemove = (e) => {
+            let offsetX = e.clientX - lastX;
+            let offsetY = lastY - e.clientY;
+
+            lastX = e.clientX;
+            lastY = e.clientY;
+
+            let sensitivity = 0.1;
+            offsetX *= sensitivity;
+            offsetY *= sensitivity;
+
+            yaw += offsetX;
+            pitch += offsetY;
+
+            let x = Math.cos(glm.radians(yaw)) * Math.cos(glm.radians(pitch));
+            let y = Math.sin(glm.radians(pitch));
+            let z = Math.sin(glm.radians(yaw)) * Math.cos(glm.radians(pitch));
+            cameraFront = glm.normalize([x, y, z]);
+            drawScene();
+            console.log("ondrag");
+        }
+        canvas.onmouseup = (e) => {
+            canvas.onmousemove = null;
+            console.log("up");
+        }
+    }
+    canvas.onwheel = (e) => {
+        let offsetY = e.deltaY * 0.1;
+        if (fov >= 1.0 && fov <= 45.0)
+            fov += offsetY;
+        if (fov <= 1.0)
+            fov = 1.0;
+        if (fov >= 45.0)
+            fov = 45.0;
+        drawScene();
+    }
+}
