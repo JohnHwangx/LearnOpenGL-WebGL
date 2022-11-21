@@ -11,6 +11,8 @@ import colors from './2.lighting/01.colors'
 import basic_lighting_diffuse from './2.lighting/02.basic_lighting_diffuse'
 import basic_lighting_specula from './2.lighting/03.basic_lighting_specular'
 import materials from './2.lighting/04.materials'
+import lighting_maps_diffuse from './2.lighting/05.lighting_maps_diffuse'
+import lighting_maps_specular from './2.lighting/06.lighting_maps_specular'
 
 export {
     hello_triangle,
@@ -25,5 +27,7 @@ export {
     colors,
     basic_lighting_diffuse,
     basic_lighting_specula,
-    materials
+    materials,
+    lighting_maps_diffuse,
+    lighting_maps_specular
 }
