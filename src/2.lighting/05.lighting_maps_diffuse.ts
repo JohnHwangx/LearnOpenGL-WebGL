@@ -242,7 +242,8 @@ export default function main() {
             lightingShader.setVec3('light.diffuse', 0.5, 0.5, 0.5);
             lightingShader.setVec3('light.specular', 1, 1, 1);
     
-            let aspect = gl.canvas.clientWidth / gl.canvas.clientHeight;
+            let glcanvas = gl.canvas as HTMLCanvasElement;
+            let aspect = glcanvas.clientWidth / glcanvas.clientHeight;
             let projection = glm.perspective(glm.radians(camera.Zoom), aspect, 0.1, 100);
             lightingShader.setMat4('projection', projection);
     

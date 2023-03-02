@@ -4,7 +4,7 @@ import Camera, { Camera_Movement } from "../resources/camera";
 import shader from "../resources/Shader";
 import { vec3 } from "../resources/glMatrix";
 
-const vsMaterials = `#version 300 es
+const vsLightCasters = `#version 300 es
 
 in vec3 aPos;
 in vec3 aNormal;
@@ -26,7 +26,7 @@ void main(){
     gl_Position = projection * view * vec4(FragPos, 1.0);
 }`;
 
-const fsMaterials = `#version 300 es
+const fsLightCasters = `#version 300 es
 precision highp float;
 out vec4 FragColor;
 
@@ -38,10 +38,17 @@ struct Material{
 
 struct Light{
     vec3 position;
+    vec3 direction;
+    float cutOff;
+    float outerCutOff;
     
     vec3 ambient;
     vec3 diffuse;
     vec3 specular;
+
+    float constant;
+    float linear;
+    float quadratic;
 };
 
 in vec3 Normal;
@@ -53,6 +60,7 @@ uniform Material material;
 uniform Light light;
 
 void main() {
+
     // ambient
     vec3 ambient = light.ambient * texture(material.diffuse, TexCoords).rgb;
 
@@ -67,6 +75,20 @@ void main() {
     vec3 reflectDir = reflect(-lightDir, norm);
     float spec = pow(max(dot(viewDir, reflectDir), 0.0), material.shininess);
     vec3 specular = light.specular * spec * texture(material.specular, TexCoords).rgb;
+
+    //spotlight    
+    float theta = dot(lightDir, normalize(-light.direction));
+    float epsilon = light.cutOff - light.outerCutOff;
+    float intensity = clamp((theta - light.outerCutOff) / epsilon, 0.0, 1.0);
+    diffuse *= intensity;
+    specular *= intensity;
+
+    // attenuation
+    float distance = length(light.position - FragPos);
+    float attenuation = 1.0 / (light.constant + light.linear * distance + light.quadratic * (distance * distance));
+    ambient *= attenuation;
+    diffuse *= attenuation;
+    specular *= attenuation;
 
     vec3 result = ambient + diffuse + specular;
     FragColor = vec4(result, 1.0);
@@ -109,7 +131,7 @@ export default function main() {
     
     let lightPos = [1.2, 1, 2];
 
-    let lightingShader = new shader(gl, vsMaterials, fsMaterials);
+    let lightingShader = new shader(gl, vsLightCasters, fsLightCasters);
     let lightCubeShader = new shader(gl, vsLightCube, fsLightCube);
 
     let lightingPositionAttibLocation = gl.getAttribLocation(lightingShader.ID, 'aPos');
@@ -162,6 +184,19 @@ export default function main() {
         -0.5,  0.5,  0.5,  0.0,  1.0,  0.0,  0.0,  0.0,
         -0.5,  0.5, -0.5,  0.0,  1.0,  0.0,  0.0,  1.0
     ];
+
+    const cubePositions = [
+        [ 0.0,  0.0,  0.0],
+        [ 2.0,  5.0, -15.0],
+        [-1.5, -2.2, -2.5],
+        [-3.8, -2.0, -12.3],
+        [ 2.4, -0.4, -3.5],
+        [-1.7,  3.0, -7.5],
+        [ 1.3, -2.0, -2.5],
+        [ 1.5,  2.0, -2.5],
+        [ 1.5,  0.2, -1.5],
+        [-1.3,  1.0, -1.5]
+    ]
     // first, configure the cube's VAO (and VBO)
     let cubeVAO = gl.createVertexArray();
     gl.bindVertexArray(cubeVAO);
@@ -193,10 +228,8 @@ export default function main() {
     lightingShader.use();
     lightingShader.setInt('material.diffuse', 0);
     lightingShader.setInt('material.specular', 1);
-    lightingShader.setVec3('material.specular', 0.5, 0.5, 0.5);
-    lightingShader.setFloat('material.shininess', 64);
 
-    let imagePaths = ["./resources/images/container2.png","./resources/images/container2_specular.png"];
+    let imagePaths = ["./resources/images/container2.png", "./resources/images/container2_specular.png"];
     const loadImage = function(imageSrc:string){
         let promise: Promise<HTMLImageElement> = new Promise((resolve,reject)=>{
             const image = new Image();
@@ -215,11 +248,11 @@ export default function main() {
         render(images);
     });
 
-    function render(images:HTMLImageElement[]){
+    function render(images: HTMLImageElement[]) {
         let textures = loadTexture(images);
-        textures.forEach((texture,index) => {
+        textures.forEach((texture, index) => {
             gl.activeTexture(gl.TEXTURE0 + index);
-            gl.bindTexture(gl.TEXTURE_2D,texture);
+            gl.bindTexture(gl.TEXTURE_2D, texture);
         });
 
         requestAnimationFrame(drawScene);
@@ -231,17 +264,22 @@ export default function main() {
     
             gl.clearColor(0.1, 0.1, 0.1, 1.0);
             gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-    
-            // be sure to activate shader when setting uniforms/drawing objects
-            // gl.useProgram(lightingShader);
-            // gl.uniform3fv(viewPosLocation, camera.Position);
+            
             lightingShader.use();
-            lightingShader.setVec3('light.position', lightPos);
+            lightingShader.setVec3('light.position', camera.Position);
+            lightingShader.setVec3('light.direction', camera.Front);
+            lightingShader.setFloat('light.cutOff', glm.cos(glm.radians(12.5)));
+            lightingShader.setFloat('light.outerCutOff', glm.cos(glm.radians(17.5)));
             lightingShader.setVec3('viewPos', camera.Position);
     
-            lightingShader.setVec3('light.ambient', 0.2, 0.2, 0.2);
-            lightingShader.setVec3('light.diffuse', 0.5, 0.5, 0.5);
+            lightingShader.setVec3('light.ambient', 0.1, 0.1, 0.1);
+            lightingShader.setVec3('light.diffuse', 0.8, 0.8, 0.8);
             lightingShader.setVec3('light.specular', 1, 1, 1);
+            lightingShader.setFloat('light.constant', 1);
+            lightingShader.setFloat('light.linear', 0.09);
+            lightingShader.setFloat('light.quadratic', 0.032);
+            
+            lightingShader.setFloat('material.shininess', 32);
     
             let glcanvas = gl.canvas as HTMLCanvasElement;
             let aspect = glcanvas.clientWidth / glcanvas.clientHeight;
@@ -254,44 +292,53 @@ export default function main() {
     
             let model = glm.identity();
             lightingShader.setMat4('model', model);
-            
+
             // render the cube
             gl.bindVertexArray(cubeVAO);
-            gl.drawArrays(gl.TRIANGLES, 0, 36);
+
+            for (let i = 0; i < cubePositions.length; i++) {
+                model = glm.identity();
+                model = glm.translate(model, cubePositions[i]);
+                let angle = 20 * i;
+                model = glm.axisRotate(model, [1, 0.3, 0.5], glm.radians(angle));
+                lightingShader.setMat4("model", model);
+
+                gl.drawArrays(gl.TRIANGLES, 0, 36);
+            }
             
-            // also draw the lamp object
-            lightCubeShader.use();
-            lightCubeShader.setMat4('projection', projection);
-            lightCubeShader.setMat4('view', view);
-            model = glm.translate(model, lightPos);
-            model = glm.scale(model, 0.2, 0.2, 0.2);
-            lightCubeShader.setMat4('model', model);
+            // // also draw the lamp object
+            // lightCubeShader.use();
+            // lightCubeShader.setMat4('projection', projection);
+            // lightCubeShader.setMat4('view', view);
+            // model = glm.translate(model, lightPos);
+            // model = glm.scale(model, 0.2, 0.2, 0.2);
+            // lightCubeShader.setMat4('model', model);
     
-            gl.bindVertexArray(lightCubeVAO);
-            gl.drawArrays(gl.TRIANGLES, 0, 36);
+            // gl.bindVertexArray(lightCubeVAO);
+            // gl.drawArrays(gl.TRIANGLES, 0, 36);
             
             requestAnimationFrame(drawScene);
         }
     }
 
-    function loadTexture(images:HTMLImageElement[]){
-        let textures=[];
-        for(let i=0;i<images.length;i++){
+    function loadTexture(images: HTMLImageElement[]) {
+        let textures = [];
+        for (let i = 0; i < images.length; i++) {
             let image = images[i];
             let texture = gl.createTexture();
-            gl.bindTexture(gl.TEXTURE_2D,texture);
-            gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
-            gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);
-            gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.REPEAT);
-            gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.REPEAT);
+            gl.bindTexture(gl.TEXTURE_2D, texture);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
 
-            gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,image);
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
             gl.generateMipmap(gl.TEXTURE_2D);
 
             textures.push(texture);
         }
         return textures;
-    }    
+    }
 
     document.onkeydown = (event) => {
         var e = event || window.event || arguments.callee.caller.arguments[0];

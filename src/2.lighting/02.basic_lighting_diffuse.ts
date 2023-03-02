@@ -201,7 +201,8 @@ export default function main() {
         view = glm.inverse(view);
         gl.uniformMatrix4fv(lightingViewLocation, false, view);
 
-        let aspect = gl.canvas.clientWidth / gl.canvas.clientHeight;
+        let glcanvas = gl.canvas as HTMLCanvasElement;
+        let aspect = glcanvas.clientWidth / glcanvas.clientHeight;
         let projection = glm.perspective(glm.radians(camera.Zoom), aspect, 0.1, 100);
         gl.uniformMatrix4fv(lightingProjectionLocation, false, projection);
 

@@ -813,6 +813,10 @@ function radians(angle:number){
     return angle * Math.PI / 180
 }
 
+function cos(value: number) {
+    return Math.cos(value);
+}
+
 function add(a:Vector3,b:Vector3,dst?:Vector3) {
     dst = dst || new Float32Array(3);
 
@@ -845,5 +849,5 @@ export default {
     normalize,
     cross,
     add,
-    
+    cos,
 }

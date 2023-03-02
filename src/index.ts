@@ -13,6 +13,11 @@ import basic_lighting_specula from './2.lighting/03.basic_lighting_specular'
 import materials from './2.lighting/04.materials'
 import lighting_maps_diffuse from './2.lighting/05.lighting_maps_diffuse'
 import lighting_maps_specular from './2.lighting/06.lighting_maps_specular'
+import light_casters_directional from './2.lighting/07.light_casters_directional'
+import light_casters_point from './2.lighting/08.light_casters_point'
+import light_casters_spot from './2.lighting/09.light_casters_spot'
+import light_casters_spot_soft from './2.lighting/10.light_casters_spot_soft'
+import multiple_lights from './2.lighting/11.multiple_lights'
 
 export {
     hello_triangle,
@@ -29,5 +34,10 @@ export {
     basic_lighting_specula,
     materials,
     lighting_maps_diffuse,
-    lighting_maps_specular
+    lighting_maps_specular,
+    light_casters_directional,
+    light_casters_point,
+    light_casters_spot,
+    light_casters_spot_soft,
+    multiple_lights
 }
