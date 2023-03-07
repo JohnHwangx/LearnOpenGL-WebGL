@@ -18,6 +18,11 @@ import light_casters_point from './2.lighting/08.light_casters_point'
 import light_casters_spot from './2.lighting/09.light_casters_spot'
 import light_casters_spot_soft from './2.lighting/10.light_casters_spot_soft'
 import multiple_lights from './2.lighting/11.multiple_lights'
+import depth_testing from './4.advanced_opengl/01.depth_testing'
+import depth_testing_view from './4.advanced_opengl/02.depth_testing_view'
+import stencil_testing from './4.advanced_opengl/03.stencil_testing'
+import blending_discard from './4.advanced_opengl/04.blending_discard'
+import blending_sort from './4.advanced_opengl/05.blending_sort'
 
 export {
     hello_triangle,
@@ -39,5 +44,10 @@ export {
     light_casters_point,
     light_casters_spot,
     light_casters_spot_soft,
-    multiple_lights
+    multiple_lights,
+    depth_testing,
+    depth_testing_view,
+    stencil_testing,
+    blending_discard,
+    blending_sort
 }

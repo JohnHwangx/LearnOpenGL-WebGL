@@ -1,3 +1,5 @@
+import { vector3 } from "./glMatrix";
+
 export type Matrix4 = Float32Array | number[];
 export type Vector4 = Float32Array | number[];
 export type Vector3 = Float32Array | number[];
@@ -827,6 +829,23 @@ function add(a:Vector3,b:Vector3,dst?:Vector3) {
     return dst;
 }
 
+function subtract(a:Vector3,b:Vector3,dst?:Vector3) {
+    dst = dst || new Float32Array(3);
+
+    dst[0] = a[0] - b[0];
+    dst[1] = a[1] - b[1];
+    dst[2] = a[2] - b[2];
+
+    return dst;
+}
+
+function length(a: vector3) {
+    var x = a[0],
+    y = a[1],
+    z = a[2];
+    return Math.sqrt(x * x + y * y + z * z);
+}
+
 export default {
     identity,
     translation,
@@ -849,5 +868,7 @@ export default {
     normalize,
     cross,
     add,
+    subtract,
     cos,
+    length,
 }
