@@ -23,6 +23,10 @@ import depth_testing_view from './4.advanced_opengl/02.depth_testing_view'
 import stencil_testing from './4.advanced_opengl/03.stencil_testing'
 import blending_discard from './4.advanced_opengl/04.blending_discard'
 import blending_sort from './4.advanced_opengl/05.blending_sort'
+import framebuffers from './4.advanced_opengl/06.framebuffers'
+import framebuffers_exercise from './4.advanced_opengl/07.framebuffers_exercise'
+import skybox from './4.advanced_opengl/08.skybox'
+import shadow_mapping_depth from './5.advanced_lighting/03.shadow_mapping_depth'
 
 export {
     hello_triangle,
@@ -49,5 +53,9 @@ export {
     depth_testing_view,
     stencil_testing,
     blending_discard,
-    blending_sort
+    blending_sort,
+    framebuffers,
+    framebuffers_exercise,
+    skybox,
+    shadow_mapping_depth
 }

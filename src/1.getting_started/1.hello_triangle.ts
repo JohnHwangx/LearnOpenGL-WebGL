@@ -75,7 +75,7 @@ export default function main() {
     gl.vertexAttribPointer(positionAttributeLocation, 3, gl.FLOAT, false, 3 * 4, 0);
     gl.enableVertexAttribArray(positionAttributeLocation);
 
-    webglUtils.resizeCanvasToDisplaySize(gl.canvas);
+    webglUtils.resizeCanvasToDisplaySize(gl.canvas as HTMLCanvasElement);
 
     gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
     gl.clearColor(0.2, 0.3, 0.3, 1);
