@@ -27,6 +27,11 @@ import framebuffers from './4.advanced_opengl/06.framebuffers'
 import framebuffers_exercise from './4.advanced_opengl/07.framebuffers_exercise'
 import skybox from './4.advanced_opengl/08.skybox'
 import shadow_mapping_depth from './5.advanced_lighting/03.shadow_mapping_depth'
+import shadow_mapping_model from './5.advanced_lighting/02.shadow_mapping_model'
+import shadow_mapping_base from './5.advanced_lighting/04.shadow_mapping_base'
+import shadow_mapping_model_depth from './5.advanced_lighting/05.shadow_mapping_model_depth'
+import shadow_mapping_model_base from './5.advanced_lighting/06.shadow_mapping_model_base'
+import shadow_mapping from './5.advanced_lighting/07.shadow_mapping'
 
 export {
     hello_triangle,
@@ -57,5 +62,10 @@ export {
     framebuffers,
     framebuffers_exercise,
     skybox,
-    shadow_mapping_depth
+    shadow_mapping_model,
+    shadow_mapping_depth,
+    shadow_mapping_base,
+    shadow_mapping_model_depth,
+    shadow_mapping_model_base,
+    shadow_mapping
 }

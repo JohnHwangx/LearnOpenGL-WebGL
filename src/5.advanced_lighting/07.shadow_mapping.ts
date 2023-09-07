@@ -5,19 +5,32 @@ import Shader from "../resources/Shader";
 
 const vsShadowMappingDepth = `#version 300 es
 layout (location = 0) in vec3 aPos;
+layout (location = 1) in vec2 aTexCoords;
+
+out vec2 TexCoords;
 
 uniform mat4 model;
+// uniform mat4 view;
+// uniform mat4 projection;
 uniform mat4 lightSpaceMatrix;
 
 void main(){
+    TexCoords = aTexCoords;
+    // gl_Position = projection * view * model * vec4(aPos, 1.0);
     gl_Position = lightSpaceMatrix * model * vec4(aPos, 1.0);
 }`;
 
 const fsShadowMappingDepth = `#version 300 es
 precision highp float;
+out vec4 FragColor;
+
+in vec2 TexCoords;
+
+uniform sampler2D texture1;
 
 void main(){    
     // gl_FragDepth = gl_FragCoord.z;
+    // FragColor = texture(texture1, TexCoords);
 }`;
 
 const vsDebugQuadDepth = `#version 300 es
@@ -55,6 +68,122 @@ void main()
     FragColor = vec4(vec3(depthValue), 1.0); // orthographic
 }`;
 
+const vsShadowMapping = `#version 300 es
+layout (location = 0) in vec3 aPos;
+layout (location = 1) in vec3 aNormal;
+layout (location = 2) in vec2 aTexCoords;
+
+// out vec2 TexCoords;
+
+// out VS_OUT {
+//     vec3 FragPos;
+//     vec3 Normal;
+//     vec2 TexCoords;
+//     vec4 FragPosLightSpace;
+// } vs_out;
+out vec3 FragPos;
+out vec3 Normal;
+out vec2 TexCoords;
+out vec4 FragPosLightSpace;
+
+uniform mat4 projection;
+uniform mat4 view;
+uniform mat4 model;
+uniform mat4 lightSpaceMatrix;
+
+void main()
+{
+    FragPos = vec3(model * vec4(aPos, 1.0));
+    Normal = transpose(inverse(mat3(model))) * aNormal;
+    TexCoords = aTexCoords;
+    FragPosLightSpace = lightSpaceMatrix * vec4(FragPos, 1.0);
+    gl_Position = projection * view * model * vec4(aPos, 1.0);
+}`;
+
+const fsShadowMapping = `#version 300 es
+precision highp float;
+out vec4 FragColor;
+
+// in VS_OUT {
+//     vec3 FragPos;
+//     vec3 Normal;
+//     vec2 TexCoords;
+//     vec4 FragPosLightSpace;
+// } fs_in;
+
+in vec3 FragPos;
+in vec3 Normal;
+in vec2 TexCoords;
+in vec4 FragPosLightSpace;
+
+uniform sampler2D diffuseTexture;
+uniform sampler2D shadowMap;
+
+uniform vec3 lightPos;
+uniform vec3 viewPos;
+
+float ShadowCalculation(vec4 fragPosLightSpace)
+{
+    // perform perspective divide
+    vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
+    // transform to [0,1] range
+    projCoords = projCoords * 0.5 + 0.5;
+    // get closest depth value from light's perspective (using [0,1] range fragPosLight as coords)
+    float closestDepth = texture(shadowMap, projCoords.xy).r; 
+    // get depth of current fragment from light's perspective
+    float currentDepth = projCoords.z;
+    // calculate bias (based on depth map resolution and slope)
+    vec3 normal = normalize(Normal);
+    vec3 lightDir = normalize(lightPos - FragPos);
+    float bias = max(0.05 * (1.0 - dot(normal, lightDir)), 0.005);
+    // check whether current frag pos is in shadow
+    // float shadow = currentDepth - bias > closestDepth  ? 1.0 : 0.0;
+    // PCF
+    float shadow = 0.0;
+    ivec2 textureSize2d = textureSize(shadowMap, 0);
+    vec2 texelSize =vec2(1.0 / float(textureSize2d.x), 1.0 / float(textureSize2d.y));
+    for(int x = -1; x <= 1; ++x)
+    {
+        for(int y = -1; y <= 1; ++y)
+        {
+            float pcfDepth = texture(shadowMap, projCoords.xy + vec2(x, y) * texelSize).r; 
+            shadow += currentDepth - bias > pcfDepth  ? 1.0 : 0.0;        
+        }    
+    }
+    shadow /= 9.0;
+    
+    // keep the shadow at 0.0 when outside the far_plane region of the light's frustum.
+    if(projCoords.z > 1.0)
+        shadow = 0.0;
+        
+    return shadow;
+}
+
+void main()
+{           
+    vec3 color = texture(diffuseTexture, TexCoords).rgb;
+    vec3 normal = normalize(Normal);
+    vec3 lightColor = vec3(0.3);
+    // ambient
+    vec3 ambient = 0.3 * color;
+    // diffuse
+    vec3 lightDir = normalize(lightPos - FragPos);
+    float diff = max(dot(lightDir, normal), 0.0);
+    vec3 diffuse = diff * lightColor;
+    // specular
+    vec3 viewDir = normalize(viewPos - FragPos);
+    vec3 reflectDir = reflect(-lightDir, normal);
+    float spec = 0.0;
+    vec3 halfwayDir = normalize(lightDir + viewDir);  
+    spec = pow(max(dot(normal, halfwayDir), 0.0), 64.0);
+    vec3 specular = spec * lightColor;    
+    // calculate shadow
+    float shadow = ShadowCalculation(FragPosLightSpace);                      
+    vec3 lighting = (ambient + (1.0 - shadow) * (diffuse + specular)) * color;    
+    
+    FragColor = vec4(lighting, 1.0);
+}`
+
 export default function main() {
     const canvas = document.querySelector('#c') as HTMLCanvasElement;
     const gl = canvas.getContext('webgl2');
@@ -74,24 +203,21 @@ export default function main() {
 
     let lightPos = [-2, 4, -1];
 
+    let shader = new Shader(gl, vsShadowMapping, fsShadowMapping);
     let simpleDepthShader = new Shader(gl, vsShadowMappingDepth, fsShadowMappingDepth);
     let debugDepthQuad = new Shader(gl, vsDebugQuadDepth, fsDebugQuadDepth);
-
-    // let simpleDepthPositionAttibLocation = gl.getAttribLocation(simpleDepthShader.ID, 'aPos');
-    // let debugDepthPositionAttibLocation = gl.getAttribLocation(debugDepthQuad.ID, 'aPos');
-    // let debugDepthTexCoordsAttibLocation = gl.getAttribLocation(debugDepthQuad.ID, 'aTexCoords');
 
     // set up vertex data (and buffer(s)) and configure vertex attributes
     // ------------------------------------------------------------------
     const planeVertices = [
-        // positions        // normals      // texcoords
+        // positions        // normals     // texcoords
          25.0, -0.5,  25.0, 0.0, 1.0, 0.0, 25.0,  0.0,
         -25.0, -0.5,  25.0, 0.0, 1.0, 0.0,  0.0,  0.0,
         -25.0, -0.5, -25.0, 0.0, 1.0, 0.0,  0.0, 25.0,
 
          25.0, -0.5,  25.0, 0.0, 1.0, 0.0, 25.0,  0.0,
         -25.0, -0.5, -25.0, 0.0, 1.0, 0.0,  0.0, 25.0,
-         25.0, -0.5, -25.0, 0.0, 1.0, 0.0, 25.0, 10.0
+         25.0, -0.5, -25.0, 0.0, 1.0, 0.0, 25.0, 25.0
     ];
 
     // plane VAO
@@ -112,7 +238,7 @@ export default function main() {
 
     // configure depth map FBO
     // -----------------------
-    let SHADOW_WIDTH = 512, SHADOW_HEIGHT = 512;
+    let SHADOW_WIDTH = 1024, SHADOW_HEIGHT = 1024;
     const depthMap = gl.createTexture();
     // const depthTextureSize = 512;
     gl.bindTexture(gl.TEXTURE_2D, depthMap);
@@ -125,15 +251,15 @@ export default function main() {
     let depthMapFBO = gl.createFramebuffer();
     gl.bindFramebuffer(gl.FRAMEBUFFER, depthMapFBO);
     gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.TEXTURE_2D, depthMap, 0);
-    // gl.drawBuffers(gl.NONE);
-    // gl.readBuffer(gl.NONE);
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 
     webglUtils.resizeCanvasToDisplaySize(canvas);
-    // gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
 
-    // gl.enable(gl.DEPTH_TEST);
+    gl.enable(gl.DEPTH_TEST);
 
+    shader.use();
+    shader.setInt("diffuseTexture", 0);
+    shader.setInt("shadowMap", 1);
     debugDepthQuad.use();
     debugDepthQuad.setInt("depthMap", 0);
 
@@ -157,10 +283,7 @@ export default function main() {
 
         let woodTexture = await loadImage("./resources/images/wood.png").then(image => {
             return loadTexture(image);
-        })
-        // let floortexture = await loadImage("./resources/images/metal.png").then(image => {
-        //     return loadTexture(image);
-        // });
+        });
 
         requestAnimationFrame(drawScene);
 
@@ -169,19 +292,18 @@ export default function main() {
             deltaTime = (currentFrame - lastFrame) * 0.001;
             lastFrame = currentFrame;
 
-            gl.clearColor(0.1, 0.1, 0.1, 1.0);
+            gl.clearColor(0.2, 0.3, 0.3, 1.0);
             gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
             // 1. render depth of scene to texture (from light's perspective)
             // --------------------------------------------------------------
-            // glm::mat4 lightProjection, lightView;
-            // glm::mat4 lightSpaceMatrix;
-            let near_plane = 1.0, far_plane = 7.5;
+            simpleDepthShader.use();
+
+            let near_plane = 1.0, far_plane = 17.5;
             let lightProjection = glm.orthographic(-10.0, 10.0, -10.0, 10.0, near_plane, far_plane);
             let lightView = glm.lookAt(lightPos, [0, 0, 0], [0.0, 1.0, 0.0]);
-            let lightSpaceMatrix = glm.multiply(lightView, lightProjection);
+            let lightSpaceMatrix = glm.multiply(lightProjection, lightView);
             // render scene from light's point of view
-            simpleDepthShader.use();
             simpleDepthShader.setMat4("lightSpaceMatrix", lightSpaceMatrix);
 
             gl.viewport(0, 0, SHADOW_WIDTH, SHADOW_HEIGHT);
@@ -195,6 +317,30 @@ export default function main() {
             // reset viewport
             gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
             gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+            
+            // 2. render scene as normal using the generated depth/shadow map  
+            // --------------------------------------------------------------
+            gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
+            gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+            shader.use();
+            let view = camera.GetViewMatrix();
+            shader.setMat4("view", view);
+
+            let glcanvas = gl.canvas as HTMLCanvasElement;
+            let aspect = glcanvas.clientWidth / glcanvas.clientHeight;
+            let projection = glm.perspective(glm.radians(camera.Zoom), aspect, 0.1, 100);
+            shader.setMat4('projection', projection);
+
+            // set light uniforms
+            shader.setVec3("viewPos", camera.Position);
+            shader.setVec3("lightPos", lightPos);
+            shader.setMat4("lightSpaceMatrix", lightSpaceMatrix);
+            gl.activeTexture(gl.TEXTURE0);
+            gl.bindTexture(gl.TEXTURE_2D, woodTexture);
+            gl.activeTexture(gl.TEXTURE1);
+            gl.bindTexture(gl.TEXTURE_2D, depthMap);
+            renderScene(shader);
+
             // render Depth map to quad for visual debugging
             // ---------------------------------------------
             debugDepthQuad.use();
@@ -202,7 +348,7 @@ export default function main() {
             debugDepthQuad.setFloat("far_plane", far_plane);
             gl.activeTexture(gl.TEXTURE0);
             gl.bindTexture(gl.TEXTURE_2D, depthMap);
-            renderQuad();
+            // renderQuad();
 
             requestAnimationFrame(drawScene);
         }
@@ -338,7 +484,7 @@ export default function main() {
         let texture = gl.createTexture();
         gl.bindTexture(gl.TEXTURE_2D, texture);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
 

@@ -292,6 +292,18 @@ function cross(a: Vector3, b: Vector3, dst?: Vector3): Vector3 {
 }
 
 /**
+ * Calculates the dot product of two vec3's
+ *
+ * @param {vector3} a the first operand
+ * @param {vector3} b the second operand
+ * @returns {Number} dot product of a and b
+ */
+function dot(a: Vector3, b: Vector3): number{    
+    let dst = a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+    return dst;
+}
+
+/**
  * Creates a lookAt matrix.
  * This is a world matrix for a camera. In other words it will transform
  * from the origin to a place and orientation in the world. For a view
@@ -305,8 +317,7 @@ function cross(a: Vector3, b: Vector3, dst?: Vector3): Vector3 {
  */
 function lookAt(cameraPosition: Vector3, target: Vector3, up: Vector3, dst?: Matrix4): Matrix4 {
     dst = dst || new Float32Array(16);
-    var zAxis = normalize(
-        subtractVectors(cameraPosition, target));
+    var zAxis = normalize(subtractVectors(target, cameraPosition));
     var xAxis = normalize(cross(up, zAxis));
     var yAxis = normalize(cross(zAxis, xAxis));
 
@@ -318,13 +329,16 @@ function lookAt(cameraPosition: Vector3, target: Vector3, up: Vector3, dst?: Mat
     dst[5] = yAxis[1];
     dst[6] = yAxis[2];
     dst[7] = 0;
-    dst[8] = zAxis[0];
-    dst[9] = zAxis[1];
-    dst[10] = zAxis[2];
+    dst[8] = -zAxis[0];
+    dst[9] = -zAxis[1];
+    dst[10] = -zAxis[2];
     dst[11] = 0;
-    dst[12] = cameraPosition[0];
-    dst[13] = cameraPosition[1];
-    dst[14] = cameraPosition[2];
+    // dst[12] = cameraPosition[0];
+    // dst[13] = cameraPosition[1];
+    // dst[14] = cameraPosition[2];
+    dst[12] = -dot(xAxis, cameraPosition);
+    dst[13] = -dot(yAxis, cameraPosition);
+    dst[14] = dot(zAxis, cameraPosition);
     dst[15] = 1;
 
     return dst;
@@ -871,4 +885,5 @@ export default {
     subtract,
     cos,
     length,
+    dot,
 }

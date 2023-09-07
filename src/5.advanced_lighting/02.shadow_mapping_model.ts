@@ -5,19 +5,32 @@ import Shader from "../resources/Shader";
 
 const vsShadowMappingDepth = `#version 300 es
 layout (location = 0) in vec3 aPos;
+layout (location = 1) in vec2 aTexCoords;
+
+out vec2 TexCoords;
 
 uniform mat4 model;
-uniform mat4 lightSpaceMatrix;
+uniform mat4 view;
+uniform mat4 projection;
+// uniform mat4 lightSpaceMatrix;
 
 void main(){
-    gl_Position = lightSpaceMatrix * model * vec4(aPos, 1.0);
+    TexCoords = aTexCoords;
+    gl_Position = projection * view * model * vec4(aPos, 1.0);
+    // gl_Position = lightSpaceMatrix * model * vec4(aPos, 1.0);
 }`;
 
 const fsShadowMappingDepth = `#version 300 es
 precision highp float;
+out vec4 FragColor;
+
+in vec2 TexCoords;
+
+uniform sampler2D texture1;
 
 void main(){    
     // gl_FragDepth = gl_FragCoord.z;
+    FragColor = texture(texture1, TexCoords);
 }`;
 
 const vsDebugQuadDepth = `#version 300 es
@@ -75,23 +88,19 @@ export default function main() {
     let lightPos = [-2, 4, -1];
 
     let simpleDepthShader = new Shader(gl, vsShadowMappingDepth, fsShadowMappingDepth);
-    let debugDepthQuad = new Shader(gl, vsDebugQuadDepth, fsDebugQuadDepth);
-
-    // let simpleDepthPositionAttibLocation = gl.getAttribLocation(simpleDepthShader.ID, 'aPos');
-    // let debugDepthPositionAttibLocation = gl.getAttribLocation(debugDepthQuad.ID, 'aPos');
-    // let debugDepthTexCoordsAttibLocation = gl.getAttribLocation(debugDepthQuad.ID, 'aTexCoords');
+    // let debugDepthQuad = new Shader(gl, vsDebugQuadDepth, fsDebugQuadDepth);
 
     // set up vertex data (and buffer(s)) and configure vertex attributes
     // ------------------------------------------------------------------
     const planeVertices = [
-        // positions        // normals      // texcoords
+        // positions        // normals     // texcoords
          25.0, -0.5,  25.0, 0.0, 1.0, 0.0, 25.0,  0.0,
         -25.0, -0.5,  25.0, 0.0, 1.0, 0.0,  0.0,  0.0,
         -25.0, -0.5, -25.0, 0.0, 1.0, 0.0,  0.0, 25.0,
 
          25.0, -0.5,  25.0, 0.0, 1.0, 0.0, 25.0,  0.0,
         -25.0, -0.5, -25.0, 0.0, 1.0, 0.0,  0.0, 25.0,
-         25.0, -0.5, -25.0, 0.0, 1.0, 0.0, 25.0, 10.0
+         25.0, -0.5, -25.0, 0.0, 1.0, 0.0, 25.0, 25.0
     ];
 
     // plane VAO
@@ -104,38 +113,40 @@ export default function main() {
 
     gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 8 * 4, 0);
     gl.enableVertexAttribArray(0);
-    gl.vertexAttribPointer(1, 3, gl.FLOAT, false, 8 * 4, 3 * 4);
+    // gl.vertexAttribPointer(1, 3, gl.FLOAT, false, 8 * 4, 3 * 4);
+    // gl.enableVertexAttribArray(1);
+    // gl.vertexAttribPointer(2, 2, gl.FLOAT, false, 8 * 4, 6 * 4);
+    // gl.enableVertexAttribArray(2);
+    gl.vertexAttribPointer(1, 2, gl.FLOAT, false, 8 * 4, 6 * 4);
     gl.enableVertexAttribArray(1);
-    gl.vertexAttribPointer(2, 2, gl.FLOAT, false, 8 * 4, 6 * 4);
-    gl.enableVertexAttribArray(2);
     gl.bindVertexArray(null);
 
     // configure depth map FBO
     // -----------------------
-    let SHADOW_WIDTH = 512, SHADOW_HEIGHT = 512;
-    const depthMap = gl.createTexture();
-    // const depthTextureSize = 512;
-    gl.bindTexture(gl.TEXTURE_2D, depthMap);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.DEPTH_COMPONENT32F, SHADOW_WIDTH, SHADOW_HEIGHT, 0, gl.DEPTH_COMPONENT, gl.FLOAT, null);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
-    // attach depth texture as FBO's depth buffer
-    let depthMapFBO = gl.createFramebuffer();
-    gl.bindFramebuffer(gl.FRAMEBUFFER, depthMapFBO);
-    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.TEXTURE_2D, depthMap, 0);
-    // gl.drawBuffers(gl.NONE);
-    // gl.readBuffer(gl.NONE);
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    // let SHADOW_WIDTH = 512, SHADOW_HEIGHT = 512;
+    // const depthMap = gl.createTexture();
+    // // const depthTextureSize = 512;
+    // gl.bindTexture(gl.TEXTURE_2D, depthMap);
+    // gl.texImage2D(gl.TEXTURE_2D, 0, gl.DEPTH_COMPONENT32F, SHADOW_WIDTH, SHADOW_HEIGHT, 0, gl.DEPTH_COMPONENT, gl.FLOAT, null);
+    // gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    // gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    // gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+    // gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
+    // // attach depth texture as FBO's depth buffer
+    // let depthMapFBO = gl.createFramebuffer();
+    // gl.bindFramebuffer(gl.FRAMEBUFFER, depthMapFBO);
+    // gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.TEXTURE_2D, depthMap, 0);
+    // gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 
     webglUtils.resizeCanvasToDisplaySize(canvas);
-    // gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
 
-    // gl.enable(gl.DEPTH_TEST);
+    gl.enable(gl.DEPTH_TEST);
 
-    debugDepthQuad.use();
-    debugDepthQuad.setInt("depthMap", 0);
+    // debugDepthQuad.use();
+    // debugDepthQuad.setInt("depthMap", 0);
+
+    simpleDepthShader.use();
+    simpleDepthShader.setInt("texture1", 0);
 
     const loadImage = function (imageSrc: string) {
         let promise: Promise<HTMLImageElement> = new Promise((resolve, reject) => {
@@ -169,40 +180,55 @@ export default function main() {
             deltaTime = (currentFrame - lastFrame) * 0.001;
             lastFrame = currentFrame;
 
-            gl.clearColor(0.1, 0.1, 0.1, 1.0);
+            gl.clearColor(0.2, 0.3, 0.3, 1.0);
             gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
             // 1. render depth of scene to texture (from light's perspective)
             // --------------------------------------------------------------
             // glm::mat4 lightProjection, lightView;
             // glm::mat4 lightSpaceMatrix;
-            let near_plane = 1.0, far_plane = 7.5;
-            let lightProjection = glm.orthographic(-10.0, 10.0, -10.0, 10.0, near_plane, far_plane);
-            let lightView = glm.lookAt(lightPos, [0, 0, 0], [0.0, 1.0, 0.0]);
-            let lightSpaceMatrix = glm.multiply(lightView, lightProjection);
+            // let near_plane = 1.0, far_plane = 7.5;
+            // let lightProjection = glm.orthographic(-10.0, 10.0, -10.0, 10.0, near_plane, far_plane);
+            // let lightView = glm.lookAt(lightPos, [0, 0, 0], [0.0, 1.0, 0.0]);
+            // let lightSpaceMatrix = glm.multiply(lightProjection, lightView);
             // render scene from light's point of view
             simpleDepthShader.use();
-            simpleDepthShader.setMat4("lightSpaceMatrix", lightSpaceMatrix);
+            // simpleDepthShader.setMat4("lightSpaceMatrix", lightSpaceMatrix);            
 
-            gl.viewport(0, 0, SHADOW_WIDTH, SHADOW_HEIGHT);
-            gl.bindFramebuffer(gl.FRAMEBUFFER, depthMapFBO);
-            gl.clear(gl.DEPTH_BUFFER_BIT);
+            let view = camera.GetViewMatrix();
+            view = glm.inverse(view);
+            simpleDepthShader.setMat4("view", view);
+
+            let glcanvas = gl.canvas as HTMLCanvasElement;
+            let aspect = glcanvas.clientWidth / glcanvas.clientHeight;
+            let projection = glm.perspective(glm.radians(camera.Zoom), aspect, 0.1, 100);
+            simpleDepthShader.setMat4('projection', projection);
+
+            // gl.viewport(0, 0, SHADOW_WIDTH, SHADOW_HEIGHT);
+            // gl.bindFramebuffer(gl.FRAMEBUFFER, depthMapFBO);
+            // gl.clear(gl.DEPTH_BUFFER_BIT);
+            // gl.activeTexture(gl.TEXTURE0);
+            // gl.bindTexture(gl.TEXTURE_2D, woodTexture);
+            // renderScene(simpleDepthShader);
+            // gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+
+            // // reset viewport
+            // gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
+            // gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+            // // render Depth map to quad for visual debugging
+            // // ---------------------------------------------
+            // debugDepthQuad.use();
+            // debugDepthQuad.setFloat("near_plane", near_plane);
+            // debugDepthQuad.setFloat("far_plane", far_plane);
+            // gl.activeTexture(gl.TEXTURE0);
+            // gl.bindTexture(gl.TEXTURE_2D, depthMap);
+            // renderQuad();
+
+            gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
             gl.activeTexture(gl.TEXTURE0);
             gl.bindTexture(gl.TEXTURE_2D, woodTexture);
-            renderScene(simpleDepthShader);
-            gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 
-            // reset viewport
-            gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
-            gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-            // render Depth map to quad for visual debugging
-            // ---------------------------------------------
-            debugDepthQuad.use();
-            debugDepthQuad.setFloat("near_plane", near_plane);
-            debugDepthQuad.setFloat("far_plane", far_plane);
-            gl.activeTexture(gl.TEXTURE0);
-            gl.bindTexture(gl.TEXTURE_2D, depthMap);
-            renderQuad();
+            renderScene(simpleDepthShader);
 
             requestAnimationFrame(drawScene);
         }
@@ -267,10 +293,12 @@ export default function main() {
             gl.bindVertexArray(cubeVAO);
             gl.enableVertexAttribArray(0);
             gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 8 * 4, 0);
+            // gl.enableVertexAttribArray(1);
+            // gl.vertexAttribPointer(1, 3, gl.FLOAT, false, 8 * 4, 3 * 4);
+            // gl.enableVertexAttribArray(2);
+            // gl.vertexAttribPointer(2, 2, gl.FLOAT, false, 8 * 4, 6 * 4);
             gl.enableVertexAttribArray(1);
-            gl.vertexAttribPointer(1, 3, gl.FLOAT, false, 8 * 4, 3 * 4);
-            gl.enableVertexAttribArray(2);
-            gl.vertexAttribPointer(2, 2, gl.FLOAT, false, 8 * 4, 6 * 4);
+            gl.vertexAttribPointer(1, 2, gl.FLOAT, false, 8 * 4, 6 * 4);
             gl.bindBuffer(gl.ARRAY_BUFFER, null);
             gl.bindVertexArray(null);
         }
@@ -338,7 +366,7 @@ export default function main() {
         let texture = gl.createTexture();
         gl.bindTexture(gl.TEXTURE_2D, texture);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
 

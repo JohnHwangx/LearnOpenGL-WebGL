@@ -55,6 +55,101 @@ void main()
     FragColor = vec4(vec3(depthValue), 1.0); // orthographic
 }`;
 
+const vsShaowMapping = `#version 300 es
+layout (location = 0) in vec3 aPos;
+layout (location = 1) in vec3 aNormal;
+layout (location = 2) in vec2 aTexCoords;
+
+// out vec2 TexCoords;
+
+// out VS_OUT {
+//     vec3 FragPos;
+//     vec3 Normal;
+//     vec2 TexCoords;
+//     vec4 FragPosLightSpace;
+// } vs_out;
+out vec3 FragPos;
+out vec3 Normal;
+out vec2 TexCoords;
+out vec4 FragPosLightSpace;
+
+uniform mat4 projection;
+uniform mat4 view;
+uniform mat4 model;
+uniform mat4 lightSpaceMatrix;
+
+void main()
+{
+    FragPos = vec3(model * vec4(aPos, 1.0));
+    Normal = transpose(inverse(mat3(model))) * aNormal;
+    TexCoords = aTexCoords;
+    FragPosLightSpace = lightSpaceMatrix * vec4(FragPos, 1.0);
+    gl_Position = projection * view * model * vec4(aPos, 1.0);
+}`;
+
+const fsShaowMapping = `#version 300 es
+precision highp float;
+out vec4 FragColor;
+
+// in VS_OUT {
+//     vec3 FragPos;
+//     vec3 Normal;
+//     vec2 TexCoords;
+//     vec4 FragPosLightSpace;
+// } fs_in;
+
+in vec3 FragPos;
+in vec3 Normal;
+in vec2 TexCoords;
+in vec4 FragPosLightSpace;
+
+uniform sampler2D diffuseTexture;
+uniform sampler2D shadowMap;
+
+uniform vec3 lightPos;
+uniform vec3 viewPos;
+
+float ShadowCalculation(vec4 fragPosLightSpace)
+{
+    // perform perspective divide
+    vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
+    // transform to [0,1] range
+    projCoords = projCoords * 0.5 + 0.5;
+    // get closest depth value from light's perspective (using [0,1] range fragPosLight as coords)
+    float closestDepth = texture(shadowMap, projCoords.xy).r; 
+    // get depth of current fragment from light's perspective
+    float currentDepth = projCoords.z;
+    // check whether current frag pos is in shadow
+    float shadow = currentDepth > closestDepth  ? 1.0 : 0.0;
+
+    return shadow;
+}
+
+void main()
+{           
+    vec3 color = texture(diffuseTexture, TexCoords).rgb;
+    vec3 normal = normalize(Normal);
+    vec3 lightColor = vec3(0.3);
+    // ambient
+    vec3 ambient = 0.3 * color;
+    // diffuse
+    vec3 lightDir = normalize(lightPos - FragPos);
+    float diff = max(dot(lightDir, normal), 0.0);
+    vec3 diffuse = diff * lightColor;
+    // specular
+    vec3 viewDir = normalize(viewPos - FragPos);
+    vec3 reflectDir = reflect(-lightDir, normal);
+    float spec = 0.0;
+    vec3 halfwayDir = normalize(lightDir + viewDir);  
+    spec = pow(max(dot(normal, halfwayDir), 0.0), 64.0);
+    vec3 specular = spec * lightColor;    
+    // calculate shadow
+    float shadow = ShadowCalculation(FragPosLightSpace);                      
+    vec3 lighting = (ambient + (1.0 - shadow) * (diffuse + specular)) * color;    
+    
+    FragColor = vec4(lighting, 1.0);
+}`
+
 export default function main() {
     const canvas = document.querySelector('#c') as HTMLCanvasElement;
     const gl = canvas.getContext('webgl2');
@@ -74,6 +169,7 @@ export default function main() {
 
     let lightPos = [-2, 4, -1];
 
+    let shader = new Shader(gl, vsShaowMapping, fsShaowMapping);
     let simpleDepthShader = new Shader(gl, vsShadowMappingDepth, fsShadowMappingDepth);
     let debugDepthQuad = new Shader(gl, vsDebugQuadDepth, fsDebugQuadDepth);
 
@@ -133,7 +229,9 @@ export default function main() {
     // gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
 
     // gl.enable(gl.DEPTH_TEST);
-
+    shader.use();
+    shader.setInt("diffuseTexture", 0);
+    shader.setInt("shadowMap", 1);
     debugDepthQuad.use();
     debugDepthQuad.setInt("depthMap", 0);
 
@@ -195,6 +293,28 @@ export default function main() {
             // reset viewport
             gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
             gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+            // 2. render scene as normal using the generated depth/shadow map  
+            // --------------------------------------------------------------
+            gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
+            gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+            shader.use();
+            let glcanvas = gl.canvas as HTMLCanvasElement;
+            let aspect = glcanvas.clientWidth / glcanvas.clientHeight;
+            let projection = glm.perspective(glm.radians(camera.Zoom), aspect, 0.1, 100.0);
+            let view = camera.GetViewMatrix();
+            shader.setMat4("projection", projection);
+            shader.setMat4("view", view);
+            // set light uniforms
+            shader.setVec3("viewPos", camera.Position);
+            shader.setVec3("lightPos", lightPos);
+            shader.setMat4("lightSpaceMatrix", lightSpaceMatrix);
+            gl.activeTexture(gl.TEXTURE0);
+            gl.bindTexture(gl.TEXTURE_2D, woodTexture);
+            gl.activeTexture(gl.TEXTURE1);
+            gl.bindTexture(gl.TEXTURE_2D, depthMap);
+            renderScene(shader);
+
             // render Depth map to quad for visual debugging
             // ---------------------------------------------
             debugDepthQuad.use();

@@ -4,8 +4,8 @@ import Camera, { Camera_Movement } from "../resources/camera";
 import Shader from "../resources/Shader";
 
 const vsDEpthTesting = `#version 300 es
-in vec3 aPos;
-in vec2 aTexCoords;
+layout (location = 0) in vec3 aPos;
+layout (location = 1) in vec2 aTexCoords;
 
 out vec2 TexCoords;
 
@@ -47,8 +47,10 @@ export default function main() {
     let lightPos = [1.2, 1, 2];
 
     let shader = new Shader(gl, vsDEpthTesting, fsDepthTesing);
-    let lightingPositionAttibLocation = gl.getAttribLocation(shader.ID, 'aPos');
-    let lightingTexCoordsAttibLocation = gl.getAttribLocation(shader.ID, 'aTexCoords');
+    // let lightingPositionAttibLocation = gl.getAttribLocation(shader.ID, 'aPos');
+    // let lightingTexCoordsAttibLocation = gl.getAttribLocation(shader.ID, 'aTexCoords');
+    let lightingPositionAttibLocation = 0;
+    let lightingTexCoordsAttibLocation = 1;
 
     const cubeVertices = [
         // positions       // texture Coords
